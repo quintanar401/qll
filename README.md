@@ -61,7 +61,7 @@ Predicates can be used to resolve ambiguities. They must accept 1 arg (x in acti
 
 Weak predicates (with ?) will be executed only if there is an ambiguity. Strong predicates (with !) will be executed on each prediction, if they return 0b the next strong predictate will be executed or the rule's DFA prediction fn will be called.
 
-By default all weak predicated expressions like ({..}? xxxx)+ or ? or * will be modified to be non-ambiguous. If the predicate is true then the main rule will be invoked otherwise the empty alternative. To make them gready use this `({1b} ....)*`
+By default all weak predicated expressions like ({..}? xxxx)+ or ? or \* will be modified to be non-ambiguious. If the predicate is true then the main rule will be invoked otherwise the empty alternative. To make them gready use this `({1b} ....)*`
 
 ### Actions
 
@@ -70,7 +70,7 @@ Actions can be used to modify parse trees. They can appear anywhere in a rule af
 a: Func "(" args ")" {:(v1;v3)} / rule
 {[x] v1:Func[predict alt][x]; v2:match "("; v3:args[predict][x]; v4:match ")"; :(v1;v3); :(v1;v2;v3;v4)} / rule parse fn
 ```
-Actions can use variables like v1, v2 and etc with parsed subexpressions. Do not forget to add ":" (return) in the final actions. Also they can use or modify x - it is passed to all subexpressions.
+Actions can use variables like v1, v2 and etc with parsed subexpressions. Do not forget to add ":" (return) in the final actions. Also they can use or modify x - it is passed to all subexpressions. Also actions can use .ll.p_i (with .ll.getPos function) to find out the current position in the input. `P` variable (if .ll.savePos is 1b) contains the position just before the first or second token/subrule.
 
 Action shortcut - a number - can be used to select some subexpressions:
 ```
@@ -80,10 +80,10 @@ a: Func "(" args ")" 13 / ~ {:(v1;v3)}
 ### API
 
 * .ll.parse "string" - main parse function, it starts from the top rule and consumes all input including EOF.
-* .ll.getPF \`rule  - get the parse fn for a rule. If you want to parse only part of the input you may have to make this rule open (just add an alias for it that it not referenced in any other rule).
+* .ll.getPF \`rule  - get the parse fn for a rule. If you want to parse only part of the input you may have to make this rule open (just add an alias for it that is not referenced in any other rule).
 * .ll.e - it is called for grammar errors, feel free to modify.
 * .ll.ferr - error fn for parse errors.
-* .ll.eval - define a rule/setting manually (Q .ll.eval "rule: ..." for example).
+* .ll.eval - define a rule/setting manually (`Q .ll.eval "rule: ..."` for example).
 
 Note that the parser is just a set of functions. You can substitute any of them and/or add your functions that call parse funcs.
 
@@ -92,6 +92,7 @@ Settings:
 * .ll.autoraze:1b - autoflat the results of X\* and X+ rules.
 * .ll.lr:1b - autofix left recursion.
 * .ll.statelim:50 - limit max static state num for DFAs
+* .ll.savePos:1b - add {P:.ll.p_i} (save the current position) action before the first subrule if it is a terminal or before the second subrule otherwise if it exists. These two places are most likely to be useful if an error needs to be reported.
 
 ### Left recursion elimination
 
@@ -101,7 +102,7 @@ Q .ll.lr:1b; / by default
 expression: expression "++" | "++" expression | expresion "*" expression | expresion "+" expression | NUMBER
 ```
 The subrules will be renamed and reodered to eliminate the left recursion and ambiguity. You must ensure:
-* All subrules with the left or right recursion must be listed explicitly (end or start with the rule name) in one rule
+* All subrules with the left or right recursion must be listed explicitly (end or start with the rule name) in one rule.
 * Subrules must appear in the desc order of priority (add at the end, mult at the start and etc). Non recursive subrules can appear anywhere but there must be at least 1 such rule.
 * All operations with the same priority must be put in one subrule.
 * For actions keep in mind that the final rules will look like `expression+2 ("+" expression+3)*` or `expr+2 ("=" expr+2)?` (left and right assoc). I'd recommend to inspect .ll.R to ensure that they are ok.
@@ -129,7 +130,7 @@ During parsing the following error can appear except input errors:
 
 ## Lexer
 
-The lexer is created as a one big DFA thus the grammar should not contain ambiguities (use KEYRULES and KEYWORDS to bypass this, they can conflict with identifiers for example).
+The lexer is created as one big DFA thus the grammar should not contain ambiguities (use KEYRULES and KEYWORDS to bypass this, they can conflict with identifiers for example).
 
 The main lexer rule must be a list of all possible tokens and raw strings like:
 ```

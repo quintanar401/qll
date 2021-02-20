@@ -1,5 +1,5 @@
-TOKENS: STR NUM NAME
 GNAME SQL
+TOKENS: STR NUM NAME
 
 start: sel | cre | ins | upd | del | drp
 sel: `select `distinct? selA (`into name)? (`from join)? (`where expr)? (`group `by exprLst)? (`having expr)? (`order `by expr (`asc|`desc)?)? (`limit expr)? | fnCall
@@ -12,12 +12,12 @@ drp: `drop `table name
 selA: "*" | namedExpr ("," namedExpr )*
 expr: expr4 (`or expr)?
 expr4: `nott expr4 | expr3 (`and expr4)? 
-expr3: expr2 (("="|"<>"|"!="|">"|"<"|">="|"<=") expr3)? | `is `not `null
+expr3: expr2 (("="|"<>"|"!="|">"|"<"|">="|"<=") expr3 | `is `not? `null)?
 expr2: expr1 ((`not? (`in|`like)|"+"|"-") expr2)?
 expr1: expr0 (("*"|"/"|"div") expr1)?
 expr0: "(" expr ")" | (`not|"-") expr0 | fnCall | fnCall1 | fnCall2 | atom | case | extcast | "{" "fn" expr "}" | "{" name name "}"
 namedExpr: expr (`as? name)?
-exprLst: "*" | expr ("," expr)?
+exprLst: "*" | expr ("," expr)*
 exprLstP: "(" exprLst ")"
 exprLstPLst: exprLstP ("," exprLstP)*
 
@@ -33,4 +33,4 @@ join: tbl (((`left | `inner | `cross)? `join | ",") tbl (`on expr)?)* | "(" join
 tbl: (fnCall | name | "(" sel ")") (`as? name)?
 decl: name type
 
-GENERATE start
+PARSER start

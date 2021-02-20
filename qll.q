@@ -5,6 +5,7 @@
 .ll.autoraze:1b; / autoflat X* and X+
 .ll.lr:1b; / autofix left recursion
 .ll.statelim:50; / limit max static state num
+.ll.savePos:1b; / save in P the current position: before the first expr if it is a terminal, before the second expr if it exists  - usefull for error reporting in cases "`term expr" and "expr `term expr"
 .ll.e:{-1 "WAR: ",x;x}; / error
 .ll.init:{
   .ll.n:`; / name
@@ -147,8 +148,8 @@
 .ll.lexmap:{x}; / calc all pos: sums[s]j;(c-|\[(c:til count t)*s:prev"\n"=x])j
 .ll.lexer0:{if[0=count x;:(();`$();0#0)]; j:where(t:.ll.L[0]\[0;.ll.L[1]$[count .ll.U;last[.ll.U]^.ll.U .ll.u8 x;x]])<.ll.L 2; v:(j cut x;.ll.L[3]t@[next j-1;-1+count j;:;-1+count t];j);
   if[any e:`ERROR=v 1; '"Unrecognized sequence ",(v[0]e)," at ",string[p 0],":",string[last p:.ll.getPos[v,enlist x;e:first where e]]]; v}; / lexer0 can be reused
-.ll.lexer:{v:.ll.lexer0 x; (.ll.lexmap v@\:where not v[1]in .ll.mn each`COMMENT`WS),enlist x};
-.ll.getPos:{[t;i]dx:0^w last l:where(i:count[t 3]^t[2;i])>w:where ("\r\n" "\n"in t 3)=t 3;(1+count l;"j"$sum{(x>191)|x<128}t[3]i+til 1|i-dx)}; / utf8 friendly
+.ll.lexer:{v:.ll.lexer0 x; .ll.lexmap (v@\:where not v[1]in .ll.mn each`COMMENT`WS),enlist x};
+.ll.getPos:{[t;i]dx:-1^w last l:where(i:count[t 3]^t[2;i])>w:where ("\r\n" "\n"in t 3)=t 3;(1+count l;"j"$sum{(x>191)|x<128}t[3]dx+til i-dx)}; / utf8 friendly
 .ll.lsave:{v:{".ll.L:enlist (",x,");"}";\n  "sv " "sv/:string .ll.L 0; v,:"\n.ll.L,:"," "sv string .ll.L 1;v,:";\n.ll.L,:",string[.ll.L 2],";";v,:"\n.ll.L,:",raze[.Q.s1 each .ll.L 3],";";
   v,:{"\n.ll.L,:enlist(",x,");"}";"sv {$[0=c:count x;"()";1=c;"enlist \"",x,"\"";"\"",x,"\""]} each .ll.L 4; x 1: v};
 
@@ -161,11 +162,13 @@
 .ll.pppath:{{" "sv .ll.ppt each x} each .ll.t neg {(-1_(0N 2)#x)[;1]}each{x where 1=first each x}{raze{$[count s:s i:where any each w:(neg 1+first y)=x s:til[count x]except 0,y;
   (s,'neg first each where each w i),\:y;enlist y]}[x]each y}[.ll.P[4].ll.P[2]?x]/[(),y]};
 
-.ll.posErr:{"[",string[p 0],":",(string last p:.ll.getPos[.ll.p_t;x]),"]"};
+.ll.posErrIn:{"[",string[p 0],":",(string last p:.ll.getPos[x;y]),"]"}; / Error function for lexer
+.ll.posErr:{.ll.posErrIn[.ll.p_t;x]};
 .ll.ferr:{i:.ll.p_i^x; '"unexpected term at ",.ll.posErr[i],": ",.ll.ppt[$[i<count .ll.p_t0;.ll.p_t[0]i;.ll.t 0]],$[.ll.p_i<>i;", starting at ",.ll.posErr[.ll.p_i];()]," expected: "," "sv .ll.ppt each .ll.t (),y};
 .ll.fgenp:{v:$[0=count p:.ll.P[3;x];".ll.fpred0 ",string x;".ll.fpred[",string[x],";x]"]; $[0=count p;:v;all 0<=p;:v;"$[",(";"sv".ll.A[",/:(string abs p w),'"][x];",/:string w:where p<0),";",v,"]"]};
 .ll.fgen0:{if[null first y;:{()}]; v:{s:string y; $[-7=t:type y;z,$[x&z~"v1";":f[x]";":(.ll.F[",s,"]",$[1=count .ll.P[0;y];"";.ll.fgenp y],")[x]"];-6=t;z,":$[",s,"i=0i^.ll.p_t0 .ll.p_i;.ll.p_t[0;-1+.ll.p_i+:1];.ll.ferr[0N;",s,"]]";
-  7=t;":(",(";"sv"v",/:s),")";-5=t;-1_1_string .ll.A y;'"unexp"]}[x]'[y;a:"v",/:string sums t:(type each y)in -7 -6h]; if[(11=type y)&(1=count y)&x;:(::)]; value "{",$[x;"[f;x]";""],(";"sv v,enlist":(",(";"sv a where t),")"),"}"};
+  7=t;":(",(";"sv"v",/:s),")";-5=t;-1_1_string .ll.A y;'"unexp"]}[x]'[y;a:"v",/:string sums t:(type each y)in -7 -6h]; if[(11=type y)&(1=count y)&x;:(::)];
+  if[.ll.savePos&count t:where t; s:"P:.ll.p_i;"; $[-6=type y t 0; v[t 0]:s,v t 0;1<count t;v[t 1]:s,v t 1;()]]; value "{",$[x;"[f;x]";""],(";"sv v,enlist":(",(";"sv a t),")"),"}"};
 .ll.fgen:{{$[1=c:count x;(.ll.fgen0[0] x 0;(),.ll.fgen0[1] x 0);(.ll.fgen0[0] each x;.ll.fgen0[1] each x)]}each .ll.P 0};
 .ll.fpdfa:{[n;tk;i] / runtime predictor
   s:1; t:.ll.P[4;n];
@@ -178,7 +181,7 @@
   .ll.e"Multiple alternatives in ",string[.ll.P[2;x]],": ",(" "sv string a),", selecting the first, path: "," "sv .ll.ppt each .ll.p_t[0].ll.p_i+til 1+v[0]-.ll.p_i; :a 0};
 .ll.fpred0:{if[-1<r:.ll.fpdfa[x;.ll.p_t0;.ll.p_i];:r]; v:.ll.fpdfa3[.ll.P[1;x];.ll.p_t0;.ll.p_i]; .ll.ferr[v 0;where not -1=.ll.P[4;x;v 1]]}; / no pred
 / .ll.fpred:{.ll.P[2;x];if[-1<r:.ll.fpdfa[x;.ll.p_t0;.ll.p_i];:r];
-.ll.parse:{.ll.p_t:x:.ll.lexer x; .ll.p_t0:"i"${if[any w:null y;'"unknown terminal: ",.ll.ppt x[0]first where w];y}[x]@[v;w;:;.ll.tm{$[11=type x;x;count x;`$x;`$()]}x[0]w:where null v:.ll.tm x 1]; .ll.p_i:0; first .ll.F[0][]};
+.ll.parse:{.ll.p_t:x:$[10=type x;.ll.lexer x;x]; .ll.p_t0:"i"${if[any w:null y;'"unknown terminal ",(.ll.ppt x[0;i])," at ",.ll.posErr i:first where w];y}[x]@[v;w;:;.ll.tm{$[11=type x;x;count x;`$x;`$()]}x[0]w:where null v:.ll.tm x 1]; .ll.p_i:0; first .ll.F[0][]};
 .ll.getPF:{n:.ll.P[2]?x; $[0=count .ll.P[1]n;.ll.F n;value"{(.ll.F[",string[n],"]",.ll.fgenp[n],")x}"]};
 
 .ll.flw:{$[0=count a:.ll.P[1;x];();0>p:.ll.fpdfa2[a;y;0];();enlist[(x;p)],$[(not null r)&-7=type r:first .ll.P[0;x]p;.z.s[r;y];()]]};
@@ -187,9 +190,10 @@
 
 / rule eval
 .ll.ty:{$[-11=type x;x;'"bad name: ",.Q.s1 x]};
-.ll.eval:{x:x where not(()," ")~/:x:-4!.ll.fext @[a:x;where x in"\n\t\r";:;" "]; if[enlist["Q"]~x 0;:value 1_a]; x:.ll.val each x; n:.ll.ty x 0; if[n=`GNAME; :.ll.n:.ll.ty x 1]; if[n in`PARSER`LEXER; :.ll[`gen`lgen n=`LEXER].ll.ty x 1];
+.ll.eval:{if[0=count x:x where not(()," ")~/:x:-4!.ll.fext @[a:x;where x in"\n\t\r";:;" "];:()]; if[enlist["Q"]~x 0;:value 1_a]; x:.ll.val each x; n:.ll.ty x 0; if[n=`GNAME; :.ll.n:.ll.ty x 1]; if[n in`PARSER`LEXER; :.ll[`gen`lgen n=`LEXER].ll.ty x 1];
   if[not":"~x 1;'"bad rule: ",.Q.s1 x 0]; x:.ll.en 2_x;if[n=`TOKENS;if[11=abs type x;:.ll.T:{x,$[`LEXER in x;.ll.L[3]except``ERROR;()]}x];'"bad TOKENS"]; if[`KEYRULES=n;if[11=abs type x;:.ll.lkey:x];'"bad KEYRULES"]; if[";"~last x; x:-1_x]; .ll.rl[.ll.mn n;x];};
-.g.e:{.ll.eval x;};
+.ll.cmt:{(0 1 1 0;0 1 1 2;2 2 1 2)\[1;0^(" \t\r\n/"!1 1 1 2 3)x]}; / mark comments
+.g.e:{.ll.eval x where not 2=(0 1 1 0;0 1 1 2;2 2 1 2)\[1;0^(" \t\r\n/"!1 1 1 2 3)x];};
 
 .ll.match:{$[-11=type x;x~.ll.p_t[1].ll.p_i;((),x)~.ll.p_t[0].ll.p_i]}; / match term
 
